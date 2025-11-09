@@ -57,7 +57,7 @@ Empirica.on("player", async (ctx, { player }) => {
 
     setInterval(async () => {
       await tryAssignPlayers(globalCtx);
-    }, 5000);
+    }, 2000);
 
     console.log("[POLLING] Assignment check started (every 5s)");
   }
