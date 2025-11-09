@@ -240,34 +240,54 @@ async function tryAssignPlayers(ctx) {
 
     // Calculate and print wait times
     const now = Date.now();
+    const WAIT_THRESHOLD = 30 * 1000; // 30 seconds
+    let maxWaitTime = 0;
+
     console.log(`[ASSIGNMENT] Current wait times:`);
     waitingPlayers.forEach(p => {
       const waitStart = p.get("waitStartTime");
-      const waitTime = waitStart ? Math.round((now - waitStart) / 1000) : 0; // in seconds
-      console.log(`  Player ${p.id} (${p.get("gender")}): ${waitTime}s`);
+      const waitTime = waitStart ? (now - waitStart) : 0; // in milliseconds
+      maxWaitTime = Math.max(maxWaitTime, waitTime);
+      console.log(`  Player ${p.id} (${p.get("gender")}): ${Math.round(waitTime / 1000)}s`);
     });
 
-    return;
+    // If anyone waited >30s, bypass constraint and take 4 longest-waiting
+    if (maxWaitTime > WAIT_THRESHOLD) {
+      console.log(`[ASSIGNMENT] Wait threshold exceeded (${Math.round(maxWaitTime / 1000)}s), forming group with 4 longest-waiting players`);
+      selectedPlayers = waitingPlayers.slice(0, 4);
+
+      // Determine roleAGender from the selected players
+      // Take the gender of the first 2 players for Role A
+      roleAGender = selectedPlayers[0].get("gender");
+      console.log(`[ASSIGNMENT] Emergency assignment - Role A gender: ${roleAGender}`);
+
+      // Continue to assignment (don't return)
+    } else {
+      return;
+    }
   }
 
-  // Take 2 longest-waiting from chosen gender for Role A
-  const roleAPlayers = genderGroups[roleAGender].slice(0, 2);
+  // Only do normal selection if we haven't already selected (emergency case)
+  if (selectedPlayers.length === 0) {
+    // Take 2 longest-waiting from chosen gender for Role A
+    const roleAPlayers = genderGroups[roleAGender].slice(0, 2);
 
-  // Take next 2 longest-waiting from remaining players for Role B
-  const remainingPlayers = waitingPlayers.filter(p => !roleAPlayers.includes(p));
-  const roleBPlayers = remainingPlayers.slice(0, 2);
+    // Take next 2 longest-waiting from remaining players for Role B
+    const remainingPlayers = waitingPlayers.filter(p => !roleAPlayers.includes(p));
+    const roleBPlayers = remainingPlayers.slice(0, 2);
 
-  selectedPlayers = [...roleAPlayers, ...roleBPlayers];
+    selectedPlayers = [...roleAPlayers, ...roleBPlayers];
 
-  // Verify we have 4 players
-  if (selectedPlayers.length < 4) {
-    console.log(`[ASSIGNMENT] Cannot form group: only ${selectedPlayers.length} players available`);
-    return;
+    // Verify we have 4 players
+    if (selectedPlayers.length < 4) {
+      console.log(`[ASSIGNMENT] Cannot form group: only ${selectedPlayers.length} players available`);
+      return;
+    }
+
+    // Count over-represented gender in final group (should be ≤2)
+    const overrepCount = selectedPlayers.filter(p => p.get("gender") === mostOverrepresented).length;
+    console.log(`[ASSIGNMENT] Selected group: Role A=${roleAGender}, contains ${overrepCount} ${mostOverrepresented} players (max 2)`);
   }
-
-  // Count over-represented gender in final group (should be ≤2)
-  const overrepCount = selectedPlayers.filter(p => p.get("gender") === mostOverrepresented).length;
-  console.log(`[ASSIGNMENT] Selected group: Role A=${roleAGender}, contains ${overrepCount} ${mostOverrepresented} players (max 2)`);
 
   console.log(`[ASSIGNMENT] Selected 4 players for assignment`);
 
