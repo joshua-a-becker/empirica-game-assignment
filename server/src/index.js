@@ -38,7 +38,7 @@ setLogLevel(argv["loglevel"] || "info");
   });
 })();
 
-process.on("unhandledRejection", function (reason, p) {
+process.on("unhandledRejection", function (reason) {
   process.exitCode = 1;
   console.error("Unhandled Promise Rejection. Reason: ", reason);
 });

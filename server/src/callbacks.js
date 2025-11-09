@@ -1,6 +1,10 @@
 import { ClassicListenersCollector } from "@empirica/core/admin/classic";
 export const Empirica = new ClassicListenersCollector();
 
+// Store context reference for polling
+let globalCtx = null;
+let pollingStarted = false;
+
 // Helper function to create waiting game
 async function createWaitingGame(ctx, batch) {
   const games = Array.from(ctx.scopesByKind("game").values());
@@ -46,6 +50,18 @@ Empirica.on("batch", "status", async (ctx, { batch }) => {
 
 // Assign players to the waiting game so they can see the intro
 Empirica.on("player", async (ctx, { player }) => {
+  // Start polling on first player connection
+  if (!pollingStarted) {
+    globalCtx = ctx;
+    pollingStarted = true;
+
+    setInterval(async () => {
+      await tryAssignPlayers(globalCtx);
+    }, 5000);
+
+    console.log("[POLLING] Assignment check started (every 5s)");
+  }
+
   console.log(`[PLAYER] Player ${player.id} connected`);
 
   // Skip if player already assigned
@@ -147,7 +163,7 @@ Empirica.on("player", "gender", async (ctx, { player }) => {
 });
 
 // Simple assignment: put 4 players into a game as soon as they're ready
-async function tryAssignPlayers(ctx) {
+export async function tryAssignPlayers(ctx) {
   // Get all players ready for matching (intro done, gender set, in waiting games)
   const allGames = Array.from(ctx.scopesByKind("game").values());
   const waitingPlayers = Array.from(ctx.scopesByKind("player").values())
@@ -328,9 +344,11 @@ async function tryAssignPlayers(ctx) {
     console.log(`[ASSIGNMENT] Assigned player ${p.id} (gender: ${p.get("gender")}) to game ${targetGame.id}`);
   }
 
-  // Mark game as started so it counts in balance calculations immediately
-  targetGame.set("hasStarted", true);
-  console.log(`[ASSIGNMENT] Game ${targetGame.id} marked as started with ${targetGame.players.length} players`);
+  console.log(`[ASSIGNMENT] Game ${targetGame.id} now has ${targetGame.players.length} players - starting game`);
+
+  // Manually start the game (players already completed intro in waiting game)
+  targetGame.set("start", true);
+  Empirica.flush();
 }
 
 Empirica.onGameStart(({ game }) => {
